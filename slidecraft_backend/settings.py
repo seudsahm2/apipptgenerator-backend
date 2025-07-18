@@ -32,6 +32,8 @@ ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[
     '127.0.0.1',
     '0.0.0.0',
     '.render.com',
+    '.onrender.com',
+    'apipptgenerator-backend.onrender.com',
     '.vercel.app'
 ])
 

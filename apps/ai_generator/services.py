@@ -18,15 +18,27 @@ class GeminiService:
         self.max_tokens = int(settings.GEMINI_MAX_TOKENS)
         self.temperature = float(settings.GEMINI_TEMPERATURE)
         
-        # Initialize the model
-        self.model = genai.GenerativeModel(
-            model_name=self.model_name,
-            generation_config=genai.types.GenerationConfig(
-                max_output_tokens=self.max_tokens,
-                temperature=self.temperature,
-                response_mime_type="application/json"
+        # Initialize the model with compatible configuration
+        try:
+            # Try with response_mime_type (newer versions)
+            self.model = genai.GenerativeModel(
+                model_name=self.model_name,
+                generation_config=genai.types.GenerationConfig(
+                    max_output_tokens=self.max_tokens,
+                    temperature=self.temperature,
+                    response_mime_type="application/json"
+                )
             )
-        )
+        except TypeError:
+            # Fallback for older versions without response_mime_type
+            logger.info("Using fallback Gemini configuration (older API version)")
+            self.model = genai.GenerativeModel(
+                model_name=self.model_name,
+                generation_config=genai.types.GenerationConfig(
+                    max_output_tokens=self.max_tokens,
+                    temperature=self.temperature
+                )
+            )
     
     def generate_presentation_content(self, topic: str, slide_count: int) -> Dict[str, Any]:
         """Generate presentation content using Google Gemini (FREE)"""
@@ -40,8 +52,24 @@ class GeminiService:
                     response = self.model.generate_content(prompt)
                     
                     if response.text:
-                        content = json.loads(response.text)
-                        return content
+                        # Try to parse as JSON
+                        try:
+                            content = json.loads(response.text)
+                            return content
+                        except json.JSONDecodeError:
+                            # If not valid JSON, try to extract JSON from response
+                            text = response.text.strip()
+                            if text.startswith('```json'):
+                                text = text.replace('```json', '').replace('```', '').strip()
+                            elif text.startswith('```'):
+                                text = text.replace('```', '').strip()
+                            
+                            try:
+                                content = json.loads(text)
+                                return content
+                            except json.JSONDecodeError:
+                                logger.warning("Could not parse JSON response, using fallback")
+                                return self._create_fallback_content(topic, slide_count)
                     else:
                         raise Exception("Empty response from Gemini")
                         
@@ -56,11 +84,6 @@ class GeminiService:
                     raise e
             
             raise Exception("Max retries exceeded")
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON parsing error: {str(e)}")
-            # Return fallback content
-            return self._create_fallback_content(topic, slide_count)
             
         except Exception as e:
             logger.error(f"Error generating presentation content: {str(e)}")
@@ -107,8 +130,12 @@ class GeminiService:
             response = self.model.generate_content(prompt)
             
             if response.text:
-                enhanced_content = json.loads(response.text)
-                return enhanced_content
+                try:
+                    enhanced_content = json.loads(response.text)
+                    return enhanced_content
+                except json.JSONDecodeError:
+                    logger.warning("Could not parse enhanced content JSON")
+                    return presentation_data
             else:
                 return presentation_data
                 
@@ -121,21 +148,21 @@ class GeminiService:
         return f"""
         Generate a professional {slide_count}-slide presentation about "{topic}".
         
-        Return a JSON object with this EXACT structure:
+        You MUST return a valid JSON object with this EXACT structure:
         {{
-            "title": "Professional presentation title",
+            "title": "Professional presentation title about {topic}",
             "description": "Brief 1-2 sentence description",
             "slides": [
                 {{
                     "slide_number": 1,
-                    "title": "Slide Title",
-                    "content": "• Bullet point 1 (max 12 words)\\n• Bullet point 2 (max 12 words)\\n• Bullet point 3 (max 12 words)",
+                    "title": "Introduction to {topic}",
+                    "content": "• First key point (max 12 words)\\n• Second key point (max 12 words)\\n• Third key point (max 12 words)",
                     "image_prompt": "Professional image description"
                 }}
             ]
         }}
         
-        REQUIREMENTS:
+        CRITICAL REQUIREMENTS:
         - Generate exactly {slide_count} slides
         - Each slide must have exactly 3 bullet points
         - Each bullet point maximum 12 words
@@ -144,11 +171,10 @@ class GeminiService:
         - Middle slides: Key topics about {topic}
         - Professional, business-appropriate content
         - Image prompts should describe professional, clean imagery
+        - Return ONLY valid JSON, no markdown formatting, no extra text
         
         Topic: {topic}
         Slide count: {slide_count}
-        
-        Return ONLY the JSON object, no additional text.
         """
     
     def _create_fallback_content(self, topic: str, slide_count: int) -> Dict[str, Any]:
