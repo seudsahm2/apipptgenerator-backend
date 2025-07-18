@@ -27,15 +27,35 @@ SECRET_KEY = env('SECRET_KEY', default='django-insecure-change-this-in-productio
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG', default=False)
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[
-    'localhost',
-    '127.0.0.1',
-    '0.0.0.0',
-    '.render.com',
-    '.onrender.com',
-    'apipptgenerator-backend.onrender.com',
-    '.vercel.app'
-])
+# ALLOWED_HOSTS Configuration - More robust parsing
+def get_allowed_hosts():
+    """Get ALLOWED_HOSTS from environment with fallback"""
+    try:
+        # Try to get from environment variable
+        hosts_env = os.environ.get('ALLOWED_HOSTS', '')
+        if hosts_env:
+            # Split by comma and clean up
+            hosts = [host.strip() for host in hosts_env.split(',') if host.strip()]
+            if hosts:
+                return hosts
+    except Exception as e:
+        print(f"Error parsing ALLOWED_HOSTS: {e}")
+    
+    # Fallback to default hosts
+    return [
+        'localhost',
+        '127.0.0.1',
+        '0.0.0.0',
+        '.render.com',
+        '.onrender.com',
+        'apipptgenerator-backend.onrender.com',
+        '.vercel.app'
+    ]
+
+ALLOWED_HOSTS = get_allowed_hosts()
+
+# Print ALLOWED_HOSTS for debugging
+print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 
 # Application definition
 DJANGO_APPS = [
