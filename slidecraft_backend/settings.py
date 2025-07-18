@@ -202,11 +202,22 @@ CORS_ALLOWED_HEADERS = [
     'x-requested-with',
 ]
 
-# Google Gemini Configuration (FREE API)
+# Google Gemini Configuration (FREE API) - Fixed parsing
+def parse_int_with_commas(value, default):
+    """Parse integer values that might contain commas"""
+    try:
+        if isinstance(value, str):
+            # Remove commas and parse
+            clean_value = value.replace(',', '').strip()
+            return int(clean_value)
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
 GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
 GEMINI_MODEL = env('GEMINI_MODEL', default='gemini-1.5-flash')
-GEMINI_MAX_TOKENS = env('GEMINI_MAX_TOKENS', default=8192)
-GEMINI_TEMPERATURE = env('GEMINI_TEMPERATURE', default=0.7)
+GEMINI_MAX_TOKENS = parse_int_with_commas(env('GEMINI_MAX_TOKENS', default='8192'), 8192)
+GEMINI_TEMPERATURE = float(env('GEMINI_TEMPERATURE', default='0.7'))
 
 # File Upload Configuration
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
