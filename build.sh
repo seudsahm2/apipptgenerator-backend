@@ -18,3 +18,5 @@ User = get_user_model();
 if not User.objects.filter(email='admin@slidecraft.ai').exists():
     User.objects.create_superuser('admin@slidecraft.ai', 'admin@slidecraft.ai', 'admin123')
 "
+
+echo "✅ SlideCraft AI Backend deployed successfully with Google Gemini (FREE)!"

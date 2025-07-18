@@ -13,6 +13,7 @@ def health_check(request):
         'status': 'healthy',
         'service': 'SlideCraft AI Backend',
         'version': '1.0.0',
+        'ai_provider': 'Google Gemini (Free)',
         'environment': 'production' if not settings.DEBUG else 'development'
     })
 
@@ -26,6 +27,8 @@ def status_check(request):
         'version': '1.0.0',
         'debug': settings.DEBUG,
         'database': 'connected',
-        'openai_configured': bool(settings.OPENAI_API_KEY),
+        'ai_provider': 'Google Gemini',
+        'gemini_configured': bool(settings.GEMINI_API_KEY),
+        'is_free_ai': True,
         'allowed_hosts': settings.ALLOWED_HOSTS,
     })

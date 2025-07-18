@@ -202,12 +202,11 @@ CORS_ALLOWED_HEADERS = [
     'x-requested-with',
 ]
 
-# OpenAI Configuration
-OPENAI_API_KEY = env('OPENAI_API_KEY', default='')
-OPENAI_MODEL = env('OPENAI_MODEL', default='gpt-4')
-OPENAI_IMAGE_MODEL = env('OPENAI_IMAGE_MODEL', default='dall-e-3')
-OPENAI_MAX_TOKENS = env('OPENAI_MAX_TOKENS', default=4000)
-OPENAI_TEMPERATURE = env('OPENAI_TEMPERATURE', default=0.7)
+# Google Gemini Configuration (FREE API)
+GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
+GEMINI_MODEL = env('GEMINI_MODEL', default='gemini-1.5-flash')
+GEMINI_MAX_TOKENS = env('GEMINI_MAX_TOKENS', default=8192)
+GEMINI_TEMPERATURE = env('GEMINI_TEMPERATURE', default=0.7)
 
 # File Upload Configuration
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB

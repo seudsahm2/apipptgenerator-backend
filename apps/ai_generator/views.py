@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from apps.presentations.models import Presentation, Slide
 from apps.presentations.serializers import PresentationSerializer
-from .services import openai_service
+from .services import gemini_service
 import logging
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ User = get_user_model()
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def generate_presentation(request):
-    """Generate a new presentation using AI"""
+    """Generate a new presentation using Google Gemini AI (FREE)"""
     try:
         # Get request data
         topic = request.data.get('topic', '').strip()
@@ -48,8 +48,8 @@ def generate_presentation(request):
         )
         
         try:
-            # Generate content using OpenAI
-            ai_content = openai_service.generate_presentation_content(topic, slide_count)
+            # Generate content using Google Gemini (FREE)
+            ai_content = gemini_service.generate_presentation_content(topic, slide_count)
             
             # Update presentation with generated title and description
             presentation.title = ai_content.get('title', presentation.title)
@@ -60,22 +60,25 @@ def generate_presentation(request):
             # Create slides
             slides_data = ai_content.get('slides', [])
             for slide_data in slides_data:
-                # Generate image for slide (optional, can be done async)
-                image_url = None
+                # Generate enhanced image prompt using Gemini
                 image_prompt = slide_data.get('image_prompt', '')
                 
-                if image_prompt:
+                if not image_prompt:
                     try:
-                        image_url = openai_service.generate_slide_image(image_prompt)
+                        image_prompt = gemini_service.generate_slide_image_prompt(
+                            slide_data.get('title', ''),
+                            slide_data.get('content', '')
+                        )
                     except Exception as img_error:
-                        logger.warning(f"Failed to generate image for slide: {str(img_error)}")
+                        logger.warning(f"Failed to generate image prompt: {str(img_error)}")
+                        image_prompt = f"Professional illustration for {slide_data.get('title', 'slide')}"
                 
-                # Create slide
+                # Create slide (no direct image generation with Gemini, just prompts)
                 Slide.objects.create(
                     presentation=presentation,
                     title=slide_data.get('title', ''),
                     content=slide_data.get('content', ''),
-                    image_url=image_url,
+                    image_url=None,  # No direct image generation
                     image_prompt=image_prompt,
                     slide_number=slide_data.get('slide_number', 1)
                 )
@@ -88,7 +91,8 @@ def generate_presentation(request):
             serializer = PresentationSerializer(presentation)
             return Response({
                 'presentation': serializer.data,
-                'message': 'Presentation generated successfully',
+                'message': 'Presentation generated successfully using Google Gemini AI (Free)',
+                'ai_provider': 'Google Gemini (Free)',
                 'credits_remaining': user.ai_credits
             }, status=status.HTTP_201_CREATED)
             
@@ -112,33 +116,50 @@ def generate_presentation(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def regenerate_slide_image(request, slide_id):
-    """Regenerate image for a specific slide"""
+def regenerate_slide_content(request, slide_id):
+    """Regenerate content for a specific slide using Gemini"""
     try:
         slide = Slide.objects.get(
             id=slide_id, 
             presentation__user=request.user
         )
         
-        if not slide.image_prompt:
-            return Response({
-                'error': 'No image prompt available for this slide'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        # Generate new content for the slide
+        topic = slide.presentation.topic
+        slide_title = slide.title
         
-        # Generate new image
-        new_image_url = openai_service.generate_slide_image(slide.image_prompt)
+        prompt = f"""
+        Regenerate content for a presentation slide about "{topic}".
+        Current slide title: "{slide_title}"
         
-        if new_image_url:
-            slide.image_url = new_image_url
+        Generate 3 bullet points (maximum 12 words each) that are:
+        - Professional and engaging
+        - Relevant to the topic and title
+        - Different from the current content
+        
+        Return only the bullet points in this format:
+        • Point 1
+        • Point 2  
+        • Point 3
+        """
+        
+        try:
+            response = gemini_service.model.generate_content(prompt)
+            new_content = response.text.strip() if response.text else slide.content
+            
+            # Update slide content
+            slide.content = new_content
             slide.save()
             
             return Response({
-                'image_url': new_image_url,
-                'message': 'Image regenerated successfully'
+                'content': new_content,
+                'message': 'Slide content regenerated successfully'
             })
-        else:
+            
+        except Exception as gen_error:
+            logger.error(f"Content regeneration failed: {str(gen_error)}")
             return Response({
-                'error': 'Failed to generate new image'
+                'error': 'Failed to regenerate content'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
     except Slide.DoesNotExist:
@@ -146,9 +167,77 @@ def regenerate_slide_image(request, slide_id):
             'error': 'Slide not found'
         }, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
-        logger.error(f"Image regeneration error: {str(e)}")
+        logger.error(f"Slide regeneration error: {str(e)}")
         return Response({
-            'error': 'Failed to regenerate image'
+            'error': 'Failed to regenerate slide content'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def enhance_presentation(request):
+    """Enhance an existing presentation using Gemini"""
+    try:
+        presentation_id = request.data.get('presentation_id')
+        if not presentation_id:
+            return Response({
+                'error': 'presentation_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        presentation = Presentation.objects.get(
+            id=presentation_id,
+            user=request.user
+        )
+        
+        # Prepare current presentation data
+        slides_data = []
+        for slide in presentation.slides.all().order_by('slide_number'):
+            slides_data.append({
+                'slide_number': slide.slide_number,
+                'title': slide.title,
+                'content': slide.content,
+                'image_prompt': slide.image_prompt
+            })
+        
+        current_data = {
+            'title': presentation.title,
+            'description': presentation.description,
+            'slides': slides_data
+        }
+        
+        # Enhance using Gemini
+        enhanced_data = gemini_service.enhance_presentation_content(current_data)
+        
+        # Update presentation
+        presentation.title = enhanced_data.get('title', presentation.title)
+        presentation.description = enhanced_data.get('description', presentation.description)
+        presentation.save()
+        
+        # Update slides
+        enhanced_slides = enhanced_data.get('slides', [])
+        for enhanced_slide in enhanced_slides:
+            try:
+                slide = presentation.slides.get(slide_number=enhanced_slide.get('slide_number'))
+                slide.title = enhanced_slide.get('title', slide.title)
+                slide.content = enhanced_slide.get('content', slide.content)
+                slide.image_prompt = enhanced_slide.get('image_prompt', slide.image_prompt)
+                slide.save()
+            except Slide.DoesNotExist:
+                continue
+        
+        serializer = PresentationSerializer(presentation)
+        return Response({
+            'presentation': serializer.data,
+            'message': 'Presentation enhanced successfully'
+        })
+        
+    except Presentation.DoesNotExist:
+        return Response({
+            'error': 'Presentation not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Enhancement error: {str(e)}")
+        return Response({
+            'error': 'Failed to enhance presentation'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
@@ -156,8 +245,11 @@ def regenerate_slide_image(request, slide_id):
 def ai_status(request):
     """Get AI service status and user credits"""
     return Response({
-        'openai_configured': bool(openai_service.openai.api_key),
+        'ai_provider': 'Google Gemini',
+        'is_free': True,
+        'gemini_configured': bool(gemini_service.model),
         'user_credits': request.user.ai_credits,
-        'model': openai_service.model,
-        'image_model': openai_service.image_model
+        'model': gemini_service.model_name,
+        'max_tokens': gemini_service.max_tokens,
+        'rate_limit': '15 requests per minute (free tier)'
     })

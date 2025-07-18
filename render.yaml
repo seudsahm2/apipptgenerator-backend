@@ -18,8 +18,14 @@ services:
         fromDatabase:
           name: slidecraft-ai-db
           property: connectionString
-      - key: OPENAI_API_KEY
+      - key: GEMINI_API_KEY
         sync: false
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+      - key: GEMINI_MAX_TOKENS
+        value: 8192
+      - key: GEMINI_TEMPERATURE
+        value: 0.7
 
 databases:
   - name: slidecraft-ai-db
