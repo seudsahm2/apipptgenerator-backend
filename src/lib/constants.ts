@@ -1,4 +1,4 @@
-import { appConfig, features, uiConfig, rateLimitConfig } from "./env"
+import { appConfig, features, uiConfig, rateLimitConfig, authConfig } from "./env"
 
 export const APP_CONFIG = {
   name: appConfig.name,
@@ -10,21 +10,35 @@ export const APP_CONFIG = {
 
 export const API_ENDPOINTS = {
   auth: {
-    signup: "/auth/signup",
-    login: "/auth/login",
-    logout: "/auth/logout",
-    session: "/auth/session",
+    signup: "/auth/signup/",
+    login: "/auth/login/",
+    logout: "/auth/logout/",
+    session: "/auth/session/",
+    profile: "/auth/profile/",
   },
   presentations: {
-    generate: "/generate",
-    list: "/presentations",
-    get: (id: string) => `/presentations/${id}`,
-    update: (id: string) => `/presentations/${id}`,
-    delete: (id: string) => `/presentations/${id}`,
+    list: "/presentations/",
+    create: "/presentations/",
+    get: (id: string) => `/presentations/${id}/`,
+    update: (id: string) => `/presentations/${id}/`,
+    delete: (id: string) => `/presentations/${id}/`,
+    duplicate: (id: string) => `/presentations/${id}/duplicate/`,
+    slides: (id: string) => `/presentations/${id}/slides/`,
+  },
+  ai: {
+    generate: "/generate/",
+    status: "/generate/status/",
+    regenerateSlide: (id: string) => `/generate/slide/${id}/regenerate/`,
+    enhance: "/generate/presentation/enhance/",
   },
   export: {
-    pptx: "/export/pptx",
-    pdf: "/export/pdf",
+    pptx: "/export/pptx/",
+    pdf: "/export/pdf/",
+    formats: "/export/formats/",
+  },
+  core: {
+    health: "/health/",
+    status: "/health/status/",
   },
 } as const
 
@@ -44,9 +58,10 @@ export const THEME_COLORS = {
 } as const
 
 export const STORAGE_KEYS = {
-  authToken: "slidecraft-auth-token",
+  authToken: authConfig.cookieName + "-token",
   theme: "slidecraft-theme-preference",
   recentPresentations: "slidecraft-recent-presentations",
+  userPreferences: "slidecraft-user-preferences",
 } as const
 
 export const FEATURE_FLAGS = {
@@ -55,9 +70,17 @@ export const FEATURE_FLAGS = {
   collaboration: features.collaboration,
   exportPDF: features.exportPDF,
   exportPPTX: features.exportPPTX,
+  devTools: features.devTools,
+  debugInfo: features.debugInfo,
 } as const
 
 export const RATE_LIMITS = {
   requests: rateLimitConfig.requests,
   window: rateLimitConfig.window,
+} as const
+
+export const DEFAULT_PRESENTATION_CONFIG = {
+  slideCount: SLIDE_LIMITS.default,
+  theme: "professional",
+  template: "default",
 } as const

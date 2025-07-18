@@ -2,8 +2,6 @@ import axios from "axios"
 import { apiConfig, isDevelopment } from "./env"
 import { STORAGE_KEYS } from "./constants"
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001"
-
 export const api = axios.create({
   baseURL: `${apiConfig.baseURL}/api`,
   timeout: apiConfig.timeout,
@@ -24,6 +22,7 @@ api.interceptors.request.use(
     // Add environment info in development
     if (isDevelopment) {
       config.headers["X-Environment"] = "development"
+      config.headers["X-Frontend-Version"] = process.env.NEXT_PUBLIC_APP_VERSION || "1.0.0"
     }
 
     return config
@@ -38,20 +37,30 @@ api.interceptors.response.use(
   (response) => {
     // Log API responses in development
     if (isDevelopment) {
-      console.log("API Response:", response.config.url, response.status)
+      console.log("✅ API Response:", response.config.url, response.status)
     }
     return response
   },
   (error) => {
     // Enhanced error logging
     if (isDevelopment) {
-      console.error("API Error:", error.config?.url, error.response?.status, error.message)
+      console.error("❌ API Error:", error.config?.url, error.response?.status, error.message)
     }
 
+    // Handle authentication errors
     if (error.response?.status === 401) {
       localStorage.removeItem(STORAGE_KEYS.authToken)
-      window.location.href = "/auth"
+      // Redirect to auth page
+      if (typeof window !== "undefined") {
+        window.location.href = "/auth"
+      }
     }
+
+    // Handle server errors
+    if (error.response?.status >= 500) {
+      console.error("🚨 Server Error:", error.response?.data?.error || "Internal server error")
+    }
+
     return Promise.reject(error)
   },
 )
